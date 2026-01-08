@@ -2,7 +2,7 @@
 
 *A robust, automated Minecraft backup system powered by Docker and GitHub.*
 
-This repository — **[danieltorquatof/MinecraftBackup_Docker](https://github.com/danieltorquatof/MinecraftBackup_Docker)** — provides a fully automated backup workflow for Minecraft Java Edition servers running inside Docker.
+This repository — **[danieltorquatof/minecraft-backup](https://github.com/danieltorquatof/minecraft-backup)** — provides a fully automated backup workflow for Minecraft Java Edition servers running inside Docker.
 It integrates Git versioning, GitHub remote storage, periodic world saves, structured logging, and graceful shutdown procedures.
 
 The solution is built on top of the official `itzg/minecraft-server` image (tested with `java21` / `LATEST`) and enhances it with a custom entrypoint that triggers backup routines at startup, shutdown, and at periodic intervals.
