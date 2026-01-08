@@ -1,4 +1,4 @@
-# 📦 MinecraftBackup_Docker
+# 📦 Minecraft Backup
 
 *A robust, automated Minecraft backup system powered by Docker and GitHub.*
 
