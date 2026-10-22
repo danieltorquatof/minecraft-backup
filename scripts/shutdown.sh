@@ -1,15 +1,22 @@
 #!/bin/bash
+# Final backup, run after the Minecraft server has stopped and flushed the world to disk.
 
-source /usr/local/bin/log.sh
-source /usr/local/bin/saveWorld.sh
+# shellcheck source=utils/saveWorld.sh
+source /opt/minecraft-backup/utils/saveWorld.sh
 
-LOG_DIR="/var/log/mc-scripts"
 LOG_FILE="$LOG_DIR/shutdown.log"
 
-REPO_DIR="/data/$REPO_NAME"
+exec 9>"$LOCK_FILE"
 
-log "SHUTDOWN" "Running shutdown script..."
+if ! flock -w 120 9; then
+  log "SHUTDOWN" "WARNING: a previous backup is still running. Continuing anyway."
+fi
 
-saveWorld "SHUTDOWN"
+log "SHUTDOWN" "Running final backup..."
+
+if ! saveWorld "SHUTDOWN"; then
+  log "SHUTDOWN" "Final backup failed."
+  exit 1
+fi
 
 log "SHUTDOWN" "Complete closure!"

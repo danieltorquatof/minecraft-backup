@@ -1,17 +1,20 @@
 #!/bin/bash
+# Logging helper shared by every script.
+# Each message goes to stdout (visible with `docker compose logs`) and to $LOG_FILE.
 
-DEFAULT_LOG_DIR="/var/log/mc-scripts"
-DEFAULT_LOG_FILE="$DEFAULT_LOG_DIR/default.log"
+LOG_DIR="${LOG_DIR:-/var/log/mc-scripts}"
 
 log() {
-    local PREFIX="$1"
-    shift
-    local MSG="$*"
+  local prefix="$1"
+  shift
 
-    local TS="$(date '+%Y-%m-%d %H:%M:%S')"
-    local TARGET_LOG_FILE="${LOG_FILE:-$DEFAULT_LOG_FILE}"
+  local line
+  line="[$(date '+%Y-%m-%d %H:%M:%S')] [$prefix] $*"
 
-    mkdir -p "$(dirname "$TARGET_LOG_FILE")"
+  echo "$line"
 
-    echo "[$TS] [$PREFIX] $MSG" >> "$TARGET_LOG_FILE"
+  local target="${LOG_FILE:-$LOG_DIR/default.log}"
+
+  mkdir -p "$(dirname "$target")" 2>/dev/null || true
+  echo "$line" >> "$target" 2>/dev/null || true
 }

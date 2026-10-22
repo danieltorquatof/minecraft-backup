@@ -1,10 +1,17 @@
-FROM itzg/minecraft-server:java21
+# syntax=docker/dockerfile:1
 
-COPY utils /usr/local/bin/
+# java25 runs the latest Minecraft releases; see README for other tags.
+ARG MC_IMAGE_TAG=java25
 
-COPY scripts/ /usr/local/bin/
-COPY entrypoint.sh /usr/local/bin/
+FROM itzg/minecraft-server:${MC_IMAGE_TAG}
 
-RUN chmod +x /usr/local/bin/*.sh
+LABEL org.opencontainers.image.title="minecraft-backup" \
+      org.opencontainers.image.description="itzg/minecraft-server with automatic Git/GitHub world backups" \
+      org.opencontainers.image.source="https://github.com/danieltorquatof/minecraft-backup" \
+      org.opencontainers.image.licenses="MIT"
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+COPY --chmod=755 entrypoint.sh /opt/minecraft-backup/
+COPY --chmod=755 utils/ /opt/minecraft-backup/utils/
+COPY --chmod=755 scripts/ /opt/minecraft-backup/scripts/
+
+ENTRYPOINT ["/opt/minecraft-backup/entrypoint.sh"]

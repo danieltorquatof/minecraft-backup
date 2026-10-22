@@ -1,0 +1,5 @@
+# Only the scripts are needed to build the image. Keeps data/, logs/ and .env out of the build context.
+*
+!entrypoint.sh
+!scripts/
+!utils/
