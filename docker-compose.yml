@@ -1,22 +1,26 @@
 services:
   minecraft:
-    image: minecraft-custom:latest
+    image: minecraft-backup:latest
     build:
       context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
+      args:
+        MC_IMAGE_TAG: "${MC_IMAGE_TAG:-java25}"
     container_name: minecraft
+    restart: unless-stopped
+    # Time for the server to stop cleanly plus the final backup push.
+    stop_grace_period: 3m
+    tty: true
+    stdin_open: true
     ports:
-      - "25565:25565"
-      - "25575:25575"
+      - "${MC_HOST_PORT:-25565}:25565"
     env_file:
       - .env
     environment:
       EULA: "TRUE"
-      TYPE: "VANILLA"
-      VERSION: "LATEST"
-      LEVEL: "${REPO_NAME}"
-      MEMORY: "4G"
+      TYPE: "${TYPE:-VANILLA}"
+      VERSION: "${VERSION:-LATEST}"
+      LEVEL: "${REPO_NAME:?Set REPO_NAME in .env}"
+      MEMORY: "${MEMORY:-4G}"
       ENABLE_RCON: "true"
     volumes:
       - ./data:/data

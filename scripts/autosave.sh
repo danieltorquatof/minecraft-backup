@@ -1,31 +1,29 @@
 #!/bin/bash
-set -e
+# Periodic backup, run every PERIODIC_INTERVAL minutes while the server is up.
+# Can also be run by hand: docker compose exec minecraft /opt/minecraft-backup/scripts/autosave.sh
 
-source /usr/local/bin/log.sh
-source /usr/local/bin/saveWorld.sh
+# shellcheck source=utils/saveWorld.sh
+source /opt/minecraft-backup/utils/saveWorld.sh
 
-LOG_DIR="/var/log/mc-scripts"
 LOG_FILE="$LOG_DIR/autosave.log"
 
-REPO_DIR="/data/$REPO_NAME"
+exec 9>"$LOCK_FILE"
 
-REPO_URL="https://$GITHUB_TOKEN@github.com/$GITHUB_USER/$REPO_NAME.git"
+if ! flock -n 9; then
+  log "AUTOSAVE" "Another backup is still running. Skipping."
+  exit 0
+fi
+
+if ! server_online; then
+  log "AUTOSAVE" "Server is not accepting RCON commands yet. Skipping."
+  exit 0
+fi
 
 log "AUTOSAVE" "Starting execution..."
 
-git config --global --add safe.directory "$REPO_DIR"
-git config --global init.defaultBranch main
-
-if [ ! -d "$REPO_DIR/.git" ]; then
-    log "AUTOSAVE" "Repository not created. Initializing new repo at $REPO_DIR..."
-
-    git -C "$REPO_DIR" init
-
-    log "AUTOSAVE" "Adding remote origin: $REPO_URL"
-    
-    git -C "$REPO_DIR" remote add origin "$REPO_URL"
+if ! saveWorld "AUTOSAVE"; then
+  log "AUTOSAVE" "Execution failed."
+  exit 1
 fi
-
-saveWorld "AUTOSAVE"
 
 log "AUTOSAVE" "Execution completed."
