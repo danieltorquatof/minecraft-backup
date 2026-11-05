@@ -17,10 +17,15 @@ jobs:
       - name: ShellCheck
         run: shellcheck -x entrypoint.sh scripts/*.sh utils/*.sh
 
-      - name: Hadolint
+      - name: Hadolint (Java)
         uses: hadolint/hadolint-action@v3.5.0
         with:
           dockerfile: Dockerfile
+
+      - name: Hadolint (Horizon)
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: Dockerfile.horizon
 
       - name: Validate docker-compose.yml
         run: |
@@ -28,9 +33,23 @@ jobs:
           sed -i 's/^REPO_NAME=$/REPO_NAME=ci-world/' .env
           docker compose config --quiet
 
+      - name: Validate docker-compose.horizon.yml
+        run: |
+          cp .env.horizon.example .env
+          sed -i 's/^REPO_NAME=$/REPO_NAME=ci-world/' .env
+          docker compose -f docker-compose.horizon.yml config --quiet
+
   build:
     runs-on: ubuntu-latest
     needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: java
+            dockerfile: Dockerfile
+          - flavor: horizon
+            dockerfile: Dockerfile.horizon
     steps:
       - uses: actions/checkout@v7
 
@@ -40,5 +59,23 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
+          file: ${{ matrix.dockerfile }}
           push: false
-          tags: minecraft-backup:ci
+          load: true
+          tags: minecraft-backup:ci-${{ matrix.flavor }}
+
+      # The game files can't be used in CI (they come from the user's own copy of Minecraft),
+      # so this only checks that Horizon runs and that setup stops with a clear error without them.
+      - name: Smoke test (Horizon)
+        if: matrix.flavor == 'horizon'
+        run: |
+          docker run --rm --entrypoint horizon-server minecraft-backup:ci-horizon --version
+          set +e
+          output="$(docker run --rm -e REPO_NAME=ci-world -e GIT_REMOTE_URL=/tmp/none.git \
+            -e HORIZON_EULA=true minecraft-backup:ci-horizon 2>&1)"
+          status=$?
+          set -e
+          echo "$output"
+          test "$status" -eq 1
+          grep -q 'no prepared Minecraft 26.3 game files' <<< "$output"
+          grep -q 'Creating server.toml' <<< "$output"
