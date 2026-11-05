@@ -11,6 +11,7 @@ LOG_FILE="$LOG_DIR/entrypoint.log"
 
 MC_PID=""
 PERIODIC_PID=""
+WATCH_PID=""
 
 validate_config() {
   local ok=true
@@ -63,6 +64,10 @@ finish() {
 
   if [ -n "$PERIODIC_PID" ]; then
     kill "$PERIODIC_PID" 2>/dev/null || true
+  fi
+
+  if [ -n "$WATCH_PID" ]; then
+    kill "$WATCH_PID" 2>/dev/null || true
   fi
 
   "$SCRIPTS_DIR/shutdown.sh" || log "ENTRYPOINT" "ERROR: final backup failed. See shutdown.log."
@@ -135,6 +140,11 @@ log "ENTRYPOINT" "Starting Minecraft server ($SERVER_FLAVOR)..."
 
 server_start "$@" &
 MC_PID=$!
+
+if is_horizon; then
+  server_watch_stop "$MC_PID" &
+  WATCH_PID=$!
+fi
 
 # Only reached when the server exits on its own (e.g. /stop in game or a crash).
 exit_code=0
