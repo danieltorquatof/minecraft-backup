@@ -21,11 +21,11 @@ saveWorld() {
   if server_online; then
     online=true
 
-    rcon 'tellraw @a {"text":"📂 Backup started!","color":"gold"}' >/dev/null
+    server_cmd 'tellraw @a {"text":"📂 Backup started!","color":"gold"}' >/dev/null
 
     # Pause automatic saving so region files are not rewritten while they are staged.
-    rcon save-off >/dev/null
-    rcon save-all flush >/dev/null
+    server_cmd save-off >/dev/null
+    server_cmd save-all flush >/dev/null
 
     log "$prefix" "World successfully saved."
   fi
@@ -34,7 +34,7 @@ saveWorld() {
   repo_git add -A || add_status=$?
 
   if [ "$online" = true ]; then
-    rcon save-on >/dev/null || log "$prefix" "WARNING: could not re-enable automatic saving."
+    server_cmd save-on >/dev/null || log "$prefix" "WARNING: could not re-enable automatic saving."
   fi
 
   if [ "$add_status" -ne 0 ]; then
@@ -66,7 +66,7 @@ saveWorld() {
     log "$prefix" "ERROR: git push failed. Check GITHUB_USER, GITHUB_TOKEN and REPO_NAME, and whether the remote history diverged."
 
     if [ "$online" = true ]; then
-      rcon 'tellraw @a {"text":"⚠ Backup failed to upload!","color":"red"}' >/dev/null || true
+      server_cmd 'tellraw @a {"text":"⚠ Backup failed to upload!","color":"red"}' >/dev/null || true
     fi
 
     return 1
@@ -75,6 +75,6 @@ saveWorld() {
   log "$prefix" "Backup successfully pushed."
 
   if [ "$online" = true ]; then
-    rcon 'tellraw @a {"text":"📁 Backup completed!","color":"green"}' >/dev/null || true
+    server_cmd 'tellraw @a {"text":"📁 Backup completed!","color":"green"}' >/dev/null || true
   fi
 }

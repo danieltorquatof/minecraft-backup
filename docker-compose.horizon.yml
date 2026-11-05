@@ -1,0 +1,28 @@
+# Horizon (Minecraft 26.3 in Rust) with Git backups. Start it with:
+#   docker compose -f docker-compose.horizon.yml up -d --build
+services:
+  horizon:
+    image: minecraft-backup:horizon
+    build:
+      context: .
+      dockerfile: Dockerfile.horizon
+      args:
+        HORIZON_VERSION: "${HORIZON_VERSION:-nightly-2026-11-04}"
+    container_name: horizon
+    restart: unless-stopped
+    # Horizon asks for up to 3 minutes to save and stop, plus the final backup push.
+    stop_grace_period: 4m
+    tty: true
+    stdin_open: true
+    ports:
+      - "${MC_HOST_PORT:-25565}:25565"
+    env_file:
+      - .env
+    environment:
+      REPO_NAME: "${REPO_NAME:?Set REPO_NAME in .env}"
+    volumes:
+      - ./data:/data
+      - ./logs:/var/log/mc-scripts
+      # The Minecraft 26.3 files prepared by the Horizon launcher (or horizon-prepare), read-only.
+      # Without HORIZON_RESOURCES_DIR an empty folder is mounted and HORIZON_RESOURCES_URL is used instead.
+      - "${HORIZON_RESOURCES_DIR:-./horizon-resources}:/opt/horizon/.local/horizon-client/26.3:ro"

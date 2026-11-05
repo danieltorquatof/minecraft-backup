@@ -1,11 +1,10 @@
 #!/bin/bash
-# Wraps the itzg/minecraft-server start script with Git backups:
+# Wraps the server (itzg/minecraft-server or Horizon, see utils/server.sh) with Git backups:
 # restore on startup, periodic autosaves and a final backup on shutdown.
 
 # shellcheck source=utils/common.sh
 source /opt/minecraft-backup/utils/common.sh
 
-ORIGINAL_ENTRYPOINT="/image/scripts/start"
 SCRIPTS_DIR="/opt/minecraft-backup/scripts"
 
 LOG_FILE="$LOG_DIR/entrypoint.log"
@@ -36,7 +35,12 @@ validate_config() {
     ok=false
   fi
 
-  if [[ -n "$ENABLE_RCON" ]] && ! is_true "$ENABLE_RCON"; then
+  if is_horizon; then
+    if ! is_true "${HORIZON_EULA:-false}"; then
+      log "ENTRYPOINT" "ERROR: set HORIZON_EULA=true to accept the Minecraft EULA (https://aka.ms/MinecraftEULA)."
+      ok=false
+    fi
+  elif [[ -n "$ENABLE_RCON" ]] && ! is_true "$ENABLE_RCON"; then
     log "ENTRYPOINT" "ERROR: ENABLE_RCON must be true; backups use RCON to flush the world to disk."
     ok=false
   fi
@@ -102,8 +106,20 @@ fi
 INTERVAL_SECONDS=$((INTERVAL_MINUTES * 60))
 
 # An empty RCON_PASSWORD would disable RCON; unset, the image generates a random one.
-if [[ -v RCON_PASSWORD && -z "$RCON_PASSWORD" ]]; then
+if ! is_horizon && [[ -v RCON_PASSWORD && -z "$RCON_PASSWORD" ]]; then
   unset RCON_PASSWORD
+fi
+
+if is_horizon; then
+  # shellcheck source=utils/horizon.sh
+  source /opt/minecraft-backup/utils/horizon.sh
+
+  log "ENTRYPOINT" "Preparing the Horizon server..."
+
+  if ! horizon_setup; then
+    log "ENTRYPOINT" "Fix the Horizon configuration and start the container again."
+    exit 1
+  fi
 fi
 
 log "ENTRYPOINT" "Running startup script..."
@@ -115,9 +131,9 @@ log "ENTRYPOINT" "Startup script completed."
 periodic_loop &
 PERIODIC_PID=$!
 
-log "ENTRYPOINT" "Starting Minecraft server..."
+log "ENTRYPOINT" "Starting Minecraft server ($SERVER_FLAVOR)..."
 
-"$ORIGINAL_ENTRYPOINT" "$@" &
+server_start "$@" &
 MC_PID=$!
 
 # Only reached when the server exits on its own (e.g. /stop in game or a crash).

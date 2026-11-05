@@ -10,6 +10,9 @@ LABEL org.opencontainers.image.title="minecraft-backup" \
       org.opencontainers.image.source="https://github.com/danieltorquatof/minecraft-backup" \
       org.opencontainers.image.licenses="MIT"
 
+# Selects the backend in utils/server.sh.
+ENV SERVER_FLAVOR=java
+
 COPY --chmod=755 entrypoint.sh /opt/minecraft-backup/
 COPY --chmod=755 utils/ /opt/minecraft-backup/utils/
 COPY --chmod=755 scripts/ /opt/minecraft-backup/scripts/

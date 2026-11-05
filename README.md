@@ -2,10 +2,10 @@
 
 *A robust, automated Minecraft backup system powered by Docker and GitHub.*
 
-This repository — **[danieltorquatof/minecraft-backup](https://github.com/danieltorquatof/minecraft-backup)** — provides a fully automated backup workflow for Minecraft Java Edition servers running inside Docker.
+This repository — **[danieltorquatof/minecraft-backup](https://github.com/danieltorquatof/minecraft-backup)** — provides a fully automated backup workflow for Minecraft Java Edition servers running inside Docker — either the official Java server or [Horizon](https://github.com/horizon-rust/horizon), the community rewrite of Minecraft 26.3 in Rust.
 It integrates Git versioning, GitHub remote storage, periodic world saves, structured logging, and graceful shutdown procedures.
 
-The solution is built on top of the official [`itzg/minecraft-server`](https://docker-minecraft-server.readthedocs.io/en/latest/) image (Java 25 by default) and wraps it with a custom entrypoint that restores the world at startup, backs it up periodically, and takes a final backup on shutdown.
+The Java image is built on top of the official [`itzg/minecraft-server`](https://docker-minecraft-server.readthedocs.io/en/latest/) image (Java 25 by default); the Horizon image runs a pinned Horizon release (see [🦀 Horizon](#-horizon-minecraft-263-in-rust)). Both share the same custom entrypoint, which restores the world at startup, backs it up periodically, and takes a final backup on shutdown.
 
 ---
 
@@ -29,6 +29,9 @@ The solution is built on top of the official [`itzg/minecraft-server`](https://d
 * **Fully Compatible with Official Image Environment Variables**
   You can configure the server using any variables supported by the original Docker image.
 
+* **Java or Horizon (Rust)**
+  The same backups work with the Java server and with Horizon. Both use the vanilla world format, so one backup repository can move from one server to the other.
+
 ---
 
 ## 📋 Requirements
@@ -43,19 +46,25 @@ The solution is built on top of the official [`itzg/minecraft-server`](https://d
 
 ```bash
 .
-├── .github/workflows/ci.yml   # ShellCheck, Hadolint, compose validation and image build
-├── docker-compose.yml
-├── Dockerfile
+├── .github/workflows/ci.yml   # ShellCheck, Hadolint, compose validation, image builds and a Horizon smoke test
+├── docker-compose.yml         # Java server (itzg/minecraft-server)
+├── docker-compose.horizon.yml # Horizon server (Rust)
+├── Dockerfile                 # Java image
+├── Dockerfile.horizon         # Horizon image
 ├── entrypoint.sh              # Startup → periodic loop → graceful shutdown
-├── .env.example
+├── .env.example               # Java settings
+├── .env.horizon.example       # Horizon settings
 ├── scripts
 │   ├── autosave.sh            # Periodic backup (can also be run by hand)
+│   ├── healthcheck.sh         # Docker health check of the Horizon image
 │   ├── init.sh                # Restores/clones the world before the server starts
 │   └── shutdown.sh            # Final backup after the server stops
 └── utils
-    ├── common.sh              # Shared configuration, git/RCON helpers
+    ├── common.sh              # Shared configuration and git helpers
+    ├── horizon.sh             # Horizon setup: server.toml, world name, game files
     ├── log.sh                 # Logging to stdout and ./logs
-    └── saveWorld.sh           # Flush → commit → push
+    ├── saveWorld.sh           # Flush → commit → push
+    └── server.sh              # Server backend: start, console commands, online check (Java or Horizon)
 ```
 
 Inside the image, everything is installed under `/opt/minecraft-backup/`.
@@ -176,6 +185,57 @@ Every `PERIODIC_INTERVAL` minutes, while the server is online:
 
 ---
 
+## 🦀 Horizon (Minecraft 26.3 in Rust)
+
+[Horizon](https://github.com/horizon-rust/horizon) is a community rewrite of Minecraft: Java Edition 26.3 in Rust. Vanilla Java clients can join it, and it reads and writes vanilla worlds. `Dockerfile.horizon` downloads a pinned Horizon release (checked against its `SHA256SUMS`) and runs it with the same Git backups.
+
+> Horizon is young and changes every day. The image pins a dated nightly (`HORIZON_VERSION`); try a newer one on a copy of your world before switching. Only **Linux x86_64** builds are published, so the image doesn't run on ARM (Raspberry Pi, Apple Silicon without emulation).
+
+### 1. Prepare the game files
+
+Horizon needs files derived from **your own copy of Minecraft 26.3**; they are never downloaded for you nor included in the image. Prepare them once with the Horizon launcher (**Prepare** button) or with `horizon-prepare --prepare --server-jar server.jar` ([Horizon's hosting guide](https://github.com/horizon-rust/horizon/blob/main/docs/hosting.md)). The result is a `26.3` folder holding `horizon-resources.json`.
+
+Then either:
+
+* set `HORIZON_RESOURCES_DIR` to that folder — it is mounted read-only — or
+* put a `.zip`/`.tar.gz` of it somewhere only you can reach and set `HORIZON_RESOURCES_URL`. It is downloaded once into `data/resources/`; delete that folder to download it again.
+
+### 2. Configure and start
+
+```bash
+cp .env.horizon.example .env
+docker compose -f docker-compose.horizon.yml up -d --build
+```
+
+Fill in the same backup variables as for Java (`GITHUB_USER`, `GITHUB_TOKEN`, `REPO_NAME`, …), plus:
+
+| Variable                  | Default               | Description                                                                                 |
+| ------------------------- | --------------------- | ------------------------------------------------------------------------------------------- |
+| `HORIZON_EULA`            | —                     | **Required.** `true` accepts the [Minecraft EULA](https://aka.ms/MinecraftEULA).            |
+| `HORIZON_RESOURCES_DIR`   | —                     | Prepared 26.3 folder on the host (this or `HORIZON_RESOURCES_URL` is required).             |
+| `HORIZON_RESOURCES_URL`   | —                     | Archive of the prepared folder, downloaded on the first start.                              |
+| `HORIZON_VERSION`         | `nightly-2026-11-04`  | [Horizon release](https://github.com/horizon-rust/horizon/releases) the image is built with. |
+| `HORIZON_ONLINE`          | `true`                | Check accounts with Mojang (first start only).                                              |
+| `HORIZON_WHITELIST`       | `false`               | Turn the whitelist on (first start only).                                                   |
+| `HORIZON_PLAYERS` / `HORIZON_OP` | —              | Whitelisted players (comma-separated) and the operator (first start only).                  |
+| `HORIZON_SEED`            | random                | World seed (first start only).                                                              |
+| `HORIZON_BUILTIN_BACKUPS` | `false`               | Keep Horizon's own zip backups (`data/backups/`) besides the Git ones.                      |
+| `MC_HOST_PORT`            | `25565`               | Host port players connect to.                                                               |
+
+The `HORIZON_*` server settings are only read on the first start, to write `data/server.toml`; edit that file afterwards (or run `docker compose -f docker-compose.horizon.yml exec horizon horizon-server --dir /data config set KEY=VALUE`). Two settings are enforced on every start: `world.name` is always `REPO_NAME`, and Horizon's own backups are turned off unless `HORIZON_BUILTIN_BACKUPS=true`, since they also pause saving.
+
+### How it differs from the Java image
+
+* Console commands (`save-off`, `save-all flush`, `tellraw`…) go through `horizon-server cmd`, Horizon's local control API, so RCON is not needed.
+* `docker compose stop` makes Horizon save and stop on its own; `stop_grace_period` is 4 minutes because Horizon may take up to 3.
+* Useful commands: `horizon-server --dir /data status`, `logs -f`, `console`, `players` (run them with `docker compose -f docker-compose.horizon.yml exec horizon …`).
+
+### Moving a Java world to Horizon
+
+Both servers use the same vanilla world format, so an existing 26.3 backup repository works as is: use the same `REPO_NAME` and the world is cloned into Horizon on the first start, and its backups continue the same Git history. Run only one of the two servers on a given world at a time, and keep a copy of the world while you try Horizon. Worlds from older versions are upgraded by Horizon when they load, as vanilla does.
+
+---
+
 ## 🧰 Useful Commands and Directories
 
 | Directory | Purpose                                                             |
@@ -223,7 +283,7 @@ Restore an older backup: stop the server, check out the desired commit inside `d
 ## 🤝 Contributing
 
 Contributions, issues, and pull requests are welcome.
-CI runs [ShellCheck](https://www.shellcheck.net/), [Hadolint](https://github.com/hadolint/hadolint), `docker compose config` and an image build on every pull request — please make sure they pass and that changes stay compatible with the official server image.
+CI runs [ShellCheck](https://www.shellcheck.net/), [Hadolint](https://github.com/hadolint/hadolint), `docker compose config` and an image build on every pull request — please make sure they pass and that changes stay compatible with the official server image and with Horizon. CI can't start Horizon itself (it has no game files), so test Horizon changes locally with your own prepared files.
 
 ---
 

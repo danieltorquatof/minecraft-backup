@@ -13,7 +13,7 @@ GIT_BRANCH="${GIT_BRANCH:-main}"
 # shellcheck disable=SC2034 # used by autosave.sh and shutdown.sh
 LOCK_FILE="/tmp/minecraft-backup.lock"
 
-# Same user the itzg image uses to run the server (UID/GID env vars, default 1000).
+# User that runs the server (UID/GID env vars, default 1000), as in itzg/minecraft-server.
 RUN_UID="${UID:-1000}"
 RUN_GID="${GID:-1000}"
 
@@ -50,21 +50,6 @@ as_server_user() {
 
 repo_git() {
   as_server_user git -C "$REPO_DIR" "$@"
-}
-
-# The image writes the (possibly auto-generated) RCON password to /data/.rcon-cli.yaml.
-rcon() {
-  local args=(--port "${RCON_PORT:-25575}")
-
-  if [ -f "$DATA_DIR/.rcon-cli.yaml" ]; then
-    args+=(--config "$DATA_DIR/.rcon-cli.yaml")
-  fi
-
-  rcon-cli "${args[@]}" "$@"
-}
-
-server_online() {
-  rcon list >/dev/null 2>&1
 }
 
 # Gives /data and the backup repository back to the server user. Older versions of
@@ -105,3 +90,6 @@ ensure_repo() {
     echo 'session.lock' | as_server_user tee -a "$REPO_DIR/.git/info/exclude" >/dev/null
   fi
 }
+
+# shellcheck source=utils/server.sh
+source /opt/minecraft-backup/utils/server.sh

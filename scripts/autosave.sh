@@ -15,7 +15,7 @@ if ! flock -n 9; then
 fi
 
 if ! server_online; then
-  log "AUTOSAVE" "Server is not accepting RCON commands yet. Skipping."
+  log "AUTOSAVE" "Server is not accepting commands yet. Skipping."
   exit 0
 fi
 
