@@ -47,6 +47,45 @@ server_online() {
   fi
 }
 
+# Horizon's supervisor stays up when the game is stopped from inside (`/stop` in game, RCON,
+# `horizon-server cmd stop`), waiting for a `start` that never comes in a container. This ends it,
+# so the container stops and takes its final backup as with the Java server. Run it in the background.
+# Only that case reports the "stopped" phase (a crash restarts as "restarting"); it is checked twice,
+# and only after the game has been up, to skip the moment a `horizon-server restart` passes through it.
+server_watch_stop() {
+  local pid="$1"
+  local seen_running=false
+  local stopped_checks=0
+  local status
+
+  is_horizon || return 0
+
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 5
+
+    status="$(horizon status --json 2>/dev/null)"
+
+    case "$status" in
+      *'"phase":"running"'*)
+        seen_running=true
+        stopped_checks=0
+        ;;
+      *'"phase":"stopped"'*)
+        [ "$seen_running" = true ] && stopped_checks=$((stopped_checks + 1))
+        ;;
+      *)
+        stopped_checks=0
+        ;;
+    esac
+
+    if [ "$stopped_checks" -ge 2 ]; then
+      log "ENTRYPOINT" "The game was stopped from inside the server. Ending horizon-server..."
+      kill -TERM "$pid" 2>/dev/null
+      return 0
+    fi
+  done
+}
+
 # Replaces the current process with the server. Run it in the background (`server_start "$@" &`)
 # so that $! is the server's own PID and SIGTERM reaches it directly.
 server_start() {

@@ -228,6 +228,7 @@ The `HORIZON_*` server settings are only read on the first start, to write `data
 
 * Console commands (`save-off`, `save-all flush`, `tellraw`…) go through `horizon-server cmd`, Horizon's local control API, so RCON is not needed.
 * `docker compose stop` makes Horizon save and stop on its own; `stop_grace_period` is 4 minutes because Horizon may take up to 3.
+* Horizon keeps running, idle, after `/stop` in game (or through RCON or `horizon-server cmd stop`), waiting for a `start`. The container ends it instead, takes the final backup and exits, as with the Java server; `restart: unless-stopped` then starts it again. `horizon-server restart` is not affected.
 * Useful commands: `horizon-server --dir /data status`, `logs -f`, `console`, `players` (run them with `docker compose -f docker-compose.horizon.yml exec horizon …`).
 
 ### Moving a Java world to Horizon
